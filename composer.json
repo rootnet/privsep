@@ -1,0 +1,35 @@
+{
+  "name": "rootnet/privsep",
+  "description": "Privilege separating PHP code",
+  "type": "library",
+  "keywords": [
+    "separating",
+    "code"
+  ],
+  "homepage": "http://www.rootnet.nl",
+  "license": "ISC",
+  "authors": [
+    {
+      "name": "Martijn van Duren (Rootnet)",
+      "email": "m.vanduren@rootnet.nl",
+      "homepage": "https://www.rootnet.nl/",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": "^7.1"
+  },
+  "support": {
+    "issues": "https://github.com/rootnet/privsep/issues",
+    "source": "https://github.com/rootnet/privsep"
+  },
+  "autoload": {
+    "psr-4": {
+      "Rootnet\\Privsep\\": "src/"
+    },
+    "exclude-from-classmap": ["/src/Config/", "/src/Whitelist/", "/src/Privsepd.php", "privsepd.php"]
+  },
+  "archive": {
+    "exclude": ["/src/Config/", "/src/Whitelist/", "/src/Privsepd.php", "privsepd.php"]
+  }
+}

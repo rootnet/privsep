@@ -1,0 +1,42 @@
+BACKSTORY
+So you just downloaded privsepd and you want to start protecting your code.
+Unfortunately the concept of privilege separation is completely foreign to you
+and you'd like to some hands on examples to get you started.
+
+This directory gives you a humorous take on privilege separation, based on the
+thing that should be common sense to most: romantic engagements.
+
+It would be expected for a man to be faithful to his wife and produce children
+with her, although it does happen that a man takes a little something on the
+side. Although morally wrong it's not forbidden.
+But be warned: never let the wife and mistress meet, or there'll be hell to pay.
+
+Unfortunately some men don't stop with the mistress, but with the help of
+privsepd we make this encounter impossible.
+
+LAYOUT
+To set up your family we build a small family tree in world, where wife,
+daughter, and mistress live. In these classes would be loaded they could
+interact inhibited with one another.
+When we set up our privsepd isolation we move our family (wife and daughter)
+to one privsepd instance and our mistress to another.
+
+SETUP
+To start our family make sure all dependencies for privsepd are installed.
+Next build and install privsepd (or run it from within the source-tree) via the
+following command:
+$ sudo privsepd -dc /path/to/privsepd/example/family.conf
+
+This starts up privsepd in the forground and show all the incoming connections
+and requests.
+
+This is sufficient to startup our normal(.php) situation and see how it helps to
+protect an innocent child from the unspeakable(.php).
+
+If you want to engage into an affair also start up mistress from another
+console.
+$ sudo privsepd -dc /path/to/privsepd/example/mistress.conf
+
+This should bring our mistress into the mix and start getting unwise(.php) in
+two different living quarters. In case you get stupid(.php) we'll try and
+protect you again.

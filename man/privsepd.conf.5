@@ -1,0 +1,168 @@
+.\" Copyright (c) 2017 Martijn van Duren (Rootnet) <m.vanduren@rootnet.nl>
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.\"
+.Dd $Mdocdate: May 17 2017 $
+.Dt PRIVSEP.CONF 5
+.Os
+.Sh NAME
+.Nm privsepd.conf
+.Nd privsepd daemon configuration file.
+.Sh DESCRIPTION
+.Nm
+is the configuration file to configure the privsepd daemon.
+The privsepd daemon is responsible for receiving, validating
+.Pq through whitelisting ,
+and executing requested methods.
+.Pp
+The configuration can be shared between the daemon and the code it executes.
+.Sh SYNTAX
+The configuration file is a php-script which is expected to return an array.
+.Sh DAEMON VARIABLES
+.Bl -tag -width callablexwhitelist
+.It Ic autoload Ar loadfile
+The
+.Ar loadfile
+is loaded every request after forking.
+It is relative to the
+.Ic chroot .
+.It Ic socket Ar array
+An array which contains at least the keys:
+.Pp
+.Ic path
+with the path to the socket file.
+The socket is opened before the
+.Ic chroot
+and can be anywhere on the filesystem.
+This is the only required component in the
+.Ic socket
+array.
+Currently tcp and unix sockets are supported.
+.Pp
+.Ic perm
+The permissions set on the socket file.
+.Pp
+.Ic owner
+The owner of the socket file.
+This can be both a username or a uid.
+.Pp
+.Ic group
+The group owner of the socket file.
+This can be both a groupname or a gid.
+.It Ic timeout Ar timeout
+The time a child connection is allowed to run. After
+.Ar timeout
+seconds the child is first requested to stop via SIGINT.
+If the child doesn't respond it will be stopped via SIGKILL.
+.It Ic user Ar user
+The
+.Ar user
+as which the daemon will run.
+Privileges will be dropped after initialization.
+Can be both an username and an uid.
+.It Ic group Ar group
+The
+.Ar group
+as which the daemon will run.
+Privileges will be dropped after initialization.
+Can be both a groupname and a gid.
+.It Ic chroot Ar chrootdir
+The directory the user will
+.Xr chroot 2
+itself to.
+The use of chroot requires that all the runtime dependencies are available
+inside the chroot.
+.It Ic callable Ar whitelist
+A multilevel array where the first level of keys is the
+.Ar classname .
+Each
+.Ar classname
+has its own array with
+.Ar methodname
+as key.
+The value of
+.Ar methodname
+is not evaluated.
+Attributes can be specified through the __get and __set
+.Ar methodname ,
+which as an exception takes an array as argument with available attributes as
+key.
+.It Ic name Ar "daemon name"
+Overwrites the default privsepd name in both process list and syslog.
+.It Ic trace Ar boolean
+Enable tracing of calls to daemon.
+Default is false.
+.El
+.Sh CODE VARIABLES
+All remaining variables are free to use by the executed code and can be accessed
+through the
+.Ic \eRootnet\ePrivsep\eConfig\eConfig
+class.
+These variables can be retrieved through
+.Fn \eRootnet\ePrivsep\eConfig\eConfig::get parameter
+where
+.Ar parameter
+is the array key.
+Multiple levels can be reached by using
+.Sq \\. .
+.Sh EXAMPLES
+.Ss CONFIGURATION
+.Bd -literal -offset indent
+<?php
+return [
+"socket"	=> [
+	"path"	=> "/var/www/tmp/eppd.sock",
+	"perm"	=> 0770
+	"user"	=> "www"
+	"group"	=> "www"
+],
+"user"		=> "_privsepd",
+"group"		=> "_privsepd",
+"chroot"	=> "/usr/local/lib/daemon",
+"autoload"	=> "/autoload.php",
+"callable"	=> [
+	"\eMy\eClass"	=> [
+		"helloworld"	=> TRUE
+		"__get"		=> [
+			"myAttr"	=> TRUE
+			"myPubAttr"	=> TRUE
+		],
+		"__set"		=> [
+			"myPubAttr"	=> TRUE
+		]
+	]
+],
+"MyInternal"	=> [
+	"variable"	=> "exists"
+]
+?>
+.Ed
+.Ss UTILISATION
+.Bd -literal -offset indent
+<?php
+require_once("/path/to/config.php");
+$config = \eRootnet\ePrivsep\eConfig\eConfig::getInstance();
+$exists = $config->get("MyInternal.variable");
+?>
+.Ed
+.Sh SEE ALSO
+.Xr php 1 ,
+.Xr remote 3php ,
+.Xr privsepd 8
+.Rs
+.%T List of Supported Socket Transports
+.%U http://php.net/manual/en/transports.php
+.Re
+.Sh AUTHORS
+.An -nosplit
+.An Martijn van Duren Aq Mt m.vanduren@rootnet.nl

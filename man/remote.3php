@@ -1,0 +1,89 @@
+.\" Copyright (c) 2017 Martijn van Duren (Rootnet) <m.vanduren@rootnet.nl>
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.\"
+.Dd $Mdocdate: May 17 2017 $
+.Dt \eRootnet\ePrivsep\eRemote 3php
+.Os
+.Sh NAME
+.Nm \eRootnet\ePrivsep\eRemote
+.Nd Simple interface to the privsepd(8)
+daemon.
+.Sh SYNOPSIS
+.Fd require_once("/path/to/remote.php");
+.Vt abstract class Nm
+.Vt public static
+.Va \eRootnet\ePrivsep\eRemote::$spath
+.Sh DESCRIPTION
+The
+.Nm
+lives inside the main application and acts as the gateway to the
+.Xr privsepd 8
+daemon.
+This abstract class provides the magic methods required that transform every
+request into a serialized abstract which is sent to the daemon.
+The daemon executes the code and returns the return value, arguments, and
+potential throwables.
+This allows the programmer to call code living inside the daemon as if it was
+defined locally.
+.Pp
+The
+.Va \eRootnet\ePrivsep\eRemote::$spath
+variable is used to determine the location of the daemon on a per class basis.
+This allows for the utilization of multiple daemons in a single application.
+Currently tcp and unix sockets are supported.
+Note that if multiple privsepd daemons are used that each class inheriting from
+remote needs to redefine
+.Va \eRootnet\ePrivsep\eRemote::$spath .
+If this is omitted the static variable in
+.Nm
+is used.
+.Pp
+Since
+.Fn __call
+and
+.Fn __callStatic
+don't support parameters by reference, methods that require them need to be
+implemented separately.
+The following universal method should be used:
+.Bd -literal -offset indent
+public [static] function <method>(&...$arguments) {
+	return self::call(__FUNCTION__, $arguments, $this);
+}
+.Ed
+.Pp
+It is possible to return an arbitrary class to main application.
+If the returned class is not implemented as a child of
+.Nm
+the class is returned as a
+.Fd \eRootnet\ePrivsep\eFallback .
+This generic class inherits from
+.Nm
+same as other remote classes, but has no methods by reference and a
+.Fn get_class
+call will not return the remote class name.
+.Sh SEE ALSO
+.Xr php 1 ,
+.Xr privsepd 8
+.Rs
+.%T List of Supported Socket Transports
+.%U http://php.net/manual/en/transports.php
+.Re
+.Rs
+.%T Magic Methods
+.%U http://php.net/manual/en/language.oop5.magic.php
+.Re
+.Rs
+.%T get_class
+.%U http://php.net/manual/en/function.get-class.php
+.Re
