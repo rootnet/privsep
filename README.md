@@ -23,7 +23,7 @@ You can install the daemon by cloning the Privsepd git-repository and running
 make install
 ``` bash
 $ git clone https://github.com/rootnet/privsep.git
-$ cd privsepd
+$ cd privsep
 $ make
 $ sudo make install
 ```
