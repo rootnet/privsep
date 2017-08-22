@@ -51,7 +51,7 @@ log1=`mktemp /tmp/server1.log.XXXXXX`
 PHP=${PHP:-`which php`}
 REMOTE=${REMOTE:-../src/Remote.php}
 CLIENT=${CLIENT:-../src/Client.php}
-ERROR=${ERROR:-../src/Error/RemoteError.php}
+ERROR=${ERROR:-../src/Throwable/RemoteError.php}
 
 ${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
@@ -70,7 +70,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 \$m = new method;
 \$m->pubmethod();
@@ -84,7 +84,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 \$m = new method;
 \$m->privatemethod();
@@ -98,7 +98,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 \$m = new method;
 \$m->unimplmethod();
@@ -112,7 +112,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 \$m = new method;
 \$m->unavailpubmethod();
@@ -126,7 +126,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 \$m = new method;
 \$m->unavailprivatemethod();
@@ -140,7 +140,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 \$m = new method;
 \$m->unavailunimplmethod();
@@ -154,7 +154,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 method::pubstatmethod();
 EOF
@@ -167,7 +167,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 method::privatestatmethod();
 EOF
@@ -180,7 +180,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 method::statunimplmethod();
 EOF
@@ -193,7 +193,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 method::unavailpubstatmethod();
 EOF
@@ -206,7 +206,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 method::unavailprivatestatmethod();
 EOF
@@ -219,7 +219,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 method::unavailstatunimplmethod();
 EOF
@@ -232,7 +232,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 \$m = new method;
 \$m->pubstatmethod();
@@ -246,7 +246,7 @@ require_once("${ERROR}");
 
 class method extends \\Rootnet\\Privsep\\Remote {
 }
-method::\$spath = "unix:///tmp/server1.sock";
+method::\$remote = "unix:///tmp/server1.sock";
 
 method::pubmethod();
 EOF

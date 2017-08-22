@@ -61,7 +61,7 @@ log2=`mktemp /tmp/server2.log.XXXXXX`
 PHP=${PHP:-`which php`}
 REMOTE=${REMOTE:-../src/Remote.php}
 CLIENT=${CLIENT:-../src/Client.php}
-ERROR=${ERROR:-../src/Error/RemoteError.php}
+ERROR=${ERROR:-../src/Throwable/RemoteError.php}
 
 ${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
@@ -80,11 +80,11 @@ require_once("${CLIENT}");
 require_once("${ERROR}");
 
 class remote1 extends \\Rootnet\\Privsep\\Remote {
-    public static \$spath = "unix:///tmp/server1.sock";
+    public static \$remote = "unix:///tmp/server1.sock";
 }
 
 class remote2 extends \\Rootnet\\Privsep\\Remote {
-    public static \$spath = "unix:///tmp/server2.sock";
+    public static \$remote = "unix:///tmp/server2.sock";
 }
 
 \$r1 = new remote1;
@@ -100,11 +100,11 @@ require_once("${CLIENT}");
 require_once("${ERROR}");
 
 class remote1 extends \\Rootnet\\Privsep\\Remote {
-    public static \$spath = "unix:///tmp/server1.sock";
+    public static \$remote = "unix:///tmp/server1.sock";
 }
 
 class remote2 extends \\Rootnet\\Privsep\\Remote {
-    public static \$spath = "unix:///tmp/server2.sock";
+    public static \$remote = "unix:///tmp/server2.sock";
 }
 
 \$r1 = new remote1;

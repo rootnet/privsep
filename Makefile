@@ -1,6 +1,6 @@
 FILES=		src/Client.php \
 		src/Config.php \
-		src/Error/RemoteError.php \
+		src/Throwable/RemoteError.php \
 		src/Remote/Fallback.php \
 		src/Remote.php \
 		src/Whitelist/WhitelistInterface.php \

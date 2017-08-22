@@ -59,6 +59,30 @@ This can be both a username or a uid.
 .Ic group
 The group owner of the socket file.
 This can be both a groupname or a gid.
+.It Ic log Ar array
+By default the daemon logs to syslog's daemon facility.
+If syslog is undesireable it's possible to choose a custom file.
+Do note that a log rotate requires a restart of the daemon.
+The log exists of the following options:
+.Pp
+.Ic path
+Path where the logfile is being stored.
+The logfile is opened before the
+.Ic chroot
+and can be anywhere on the filesystem.
+This is the only required component in the
+.Ic log
+array.
+.Pp
+.Ic owner
+The owner of the logfile.
+.Pp
+.Ic group
+The group of the logfile.
+.Pp
+.Ic perm
+The access permissions of the file.
+Default is 0640.
 .It Ic timeout Ar timeout
 The time a child connection is allowed to run. After
 .Ar timeout

@@ -1,0 +1,94 @@
+.\" Copyright (c) 2017 Martijn van Duren (Rootnet) <m.vanduren@rootnet.nl>
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.\"
+.Dd $Mdocdate: Jul 13 2017 $
+.Dt PRIVSEPD_CHROOT
+.Os
+.Sh NAME
+.Nm privsepd_chroot
+.Nd chroot preparations for privsepd
+.Sh DESCRIPTION
+When setting up chrooting privsepd environment the sysadmin should be aware of
+the running code and it's external dependencies.
+This file attempts to list most common problems and their solutions, but it's
+far from exhaustive.
+Note that this file doesn't target any specific operating system.
+Where specifics are known they will be mentioned.
+Always consult the manpages of your local system.
+.Pp
+All the files mentioned below are intended to be placed inside the chroot
+directory.
+.Ss NETWORKING
+When connecting to the network several steps have to be taken.
+.Bl -tag -width Hostname resolving
+.It Hostname resolving
+To resolve a hostname needs to have either
+.Pa /etc/hosts
+or
+.Pa /etc/resolv.conf
+available.
+Be aware that GNU libc requires libnss_dns.so.2 available.
+This can be made available either by copying it into the chroot, or by
+pre-loading it via the
+.Ev LD_PRELOAD
+environment variable.
+The latter option is preferred.
+.It SSL/TLS
+To verify a certificate the certificate authority needs to be available.
+This can be found under
+.Pa /etc/ssl/cert.pem
+on
+.Ox ,
+and
+.Pa /usr/lib/ssl/cert.pem
+on Debian/Linux.
+To initiate the connection a source of entropy needs to be available.
+When linked against LibreSSL this is available by default through the
+.Xr arc4random 3
+function.
+Other systems need to have
+.Pa /dev/urandom
+available for entropy.
+.El
+.Ss LOGGING
+When logging to syslog most systems require
+.Pa /dev/log
+to be available.
+.Ox
+provides a system call and doesn't require this file to be available.
+.Ss MAILING
+Sending mail via the mail function requires the
+.Xr sendmail 8
+and a
+.Xr sh 1
+binary to be available.
+A statically compiled versions of these applications are advised.
+For
+.Xr sendmail 8
+I advise femail, as it has the minimal amount of dependencies.
+.Ss TIMEZONE
+When using timezone related functionality like DateTime the zonefiles need to be
+available.
+Normally these can be found under
+.Pa /usr/share/zoneinfo/ .
+.Sh SEE ALSO
+.Xr chroot 2 ,
+.Xr hosts 5 ,
+.Xr resolv.conf 5 ,
+.Xr syslogd 8
+.Pp
+For femail see:
+.Lk http://bulabula.org/femail/
+.Sh AUTHORS
+.An Martijn van Duren Aq Mt m.vanduren@rootnet.nl

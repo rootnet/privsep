@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-namespace Rootnet\Privsep\Error;
+namespace Rootnet\Privsep\Throwable;
 
 
 use Rootnet\Privsep\Remote;

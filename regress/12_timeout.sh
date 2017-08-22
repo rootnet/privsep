@@ -56,7 +56,7 @@ log1=`mktemp /tmp/server1.log.XXXXXX`
 PHP=${PHP:-`which php`}
 REMOTE=${REMOTE:-../src/Remote.php}
 CLIENT=${CLIENT:-../src/Client.php}
-ERROR=${ERROR:-../src/Error/RemoteError.php}
+ERROR=${ERROR:-../src/Throwable/RemoteError.php}
 
 ${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
@@ -67,7 +67,7 @@ sleep 0.2
 ## Test public gets
 # This should succeed
 
-dotest privsepdtimeout 255 "Fatal error: Uncaught Rootnet\Privsep\Error\RemoteError: Connection reset by peer in" << EOF
+dotest privsepdtimeout 255 "Fatal error: Uncaught Rootnet\Privsep\Throwable\RemoteError: Connection reset by peer in" << EOF
 <?php
 require_once("${REMOTE}");
 require_once("${CLIENT}");
@@ -75,7 +75,7 @@ require_once("${ERROR}");
 
 class timeout extends \\Rootnet\\Privsep\\Remote {
 }
-timeout::\$spath = "unix:///tmp/server1.sock";
+timeout::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new timeout;
 
@@ -83,7 +83,7 @@ while(true)
     \$t->privsepdtimeout();
 EOF
 
-dotest privsepdkill 255 "Fatal error: Uncaught Rootnet\Privsep\Error\RemoteError: Connection reset by peer in" << EOF
+dotest privsepdkill 255 "Fatal error: Uncaught Rootnet\Privsep\Throwable\RemoteError: Connection reset by peer in" << EOF
 <?php
 require_once("${REMOTE}");
 require_once("${CLIENT}");
@@ -91,7 +91,7 @@ require_once("${ERROR}");
 
 class timeout extends \\Rootnet\\Privsep\\Remote {
 }
-timeout::\$spath = "unix:///tmp/server1.sock";
+timeout::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new timeout;
 

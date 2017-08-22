@@ -56,7 +56,7 @@ log1=`mktemp /tmp/server1.log.XXXXXX`
 PHP=${PHP:-`which php`}
 REMOTE=${REMOTE:-../src/Remote.php}
 CLIENT=${CLIENT:-../src/Client.php}
-ERROR=${ERROR:-../src/Error/RemoteError.php}
+ERROR=${ERROR:-../src/Throwable/RemoteError.php}
 
 ${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
@@ -75,7 +75,7 @@ require_once("${ERROR}");
 
 class returnval extends \\Rootnet\\Privsep\\Remote {
 }
-returnval::\$spath = "unix:///tmp/server1.sock";
+returnval::\$remote = "unix:///tmp/server1.sock";
 
 \$r = new returnval;
 if (\$r->string() !== (string) "1") {
@@ -92,7 +92,7 @@ require_once("${ERROR}");
 
 class returnval extends \\Rootnet\\Privsep\\Remote {
 }
-returnval::\$spath = "unix:///tmp/server1.sock";
+returnval::\$remote = "unix:///tmp/server1.sock";
 
 \$r = new returnval;
 if (\$r->int() !== (int) 1) {
@@ -109,7 +109,7 @@ require_once("${ERROR}");
 
 class returnval extends \\Rootnet\\Privsep\\Remote {
 }
-returnval::\$spath = "unix:///tmp/server1.sock";
+returnval::\$remote = "unix:///tmp/server1.sock";
 
 \$r = new returnval;
 if (\$r->float() !== (float) 1.0) {
@@ -126,7 +126,7 @@ require_once("${ERROR}");
 
 class returnval extends \\Rootnet\\Privsep\\Remote {
 }
-returnval::\$spath = "unix:///tmp/server1.sock";
+returnval::\$remote = "unix:///tmp/server1.sock";
 
 \$r = new returnval;
 if (\$r->bool() !== (bool) true) {
@@ -143,7 +143,7 @@ require_once("${ERROR}");
 
 class returnval extends \\Rootnet\\Privsep\\Remote {
 }
-returnval::\$spath = "unix:///tmp/server1.sock";
+returnval::\$remote = "unix:///tmp/server1.sock";
 
 \$r = new returnval;
 if (!is_array(\$r->array())) {
@@ -160,7 +160,7 @@ require_once("${ERROR}");
 
 class returnval extends \\Rootnet\\Privsep\\Remote {
 }
-returnval::\$spath = "unix:///tmp/server1.sock";
+returnval::\$remote = "unix:///tmp/server1.sock";
 
 \$r = new returnval;
 if (!is_callable(\$r->callable())) {
@@ -177,7 +177,7 @@ require_once("${ERROR}");
 
 class returnval extends \\Rootnet\\Privsep\\Remote {
 }
-returnval::\$spath = "unix:///tmp/server1.sock";
+returnval::\$remote = "unix:///tmp/server1.sock";
 
 \$r = new returnval;
 if (!is_a(\$r->object(), "returnval")) {
@@ -186,7 +186,7 @@ if (!is_a(\$r->object(), "returnval")) {
 }
 EOF
 
-dotest resource 255 "Fatal error: Uncaught TypeError: Transferring resources not supported in" << EOF
+dotest valid_resource 0 << EOF
 <?php
 require_once("${REMOTE}");
 require_once("${CLIENT}");
@@ -194,10 +194,30 @@ require_once("${ERROR}");
 
 class returnval extends \\Rootnet\\Privsep\\Remote {
 }
-returnval::\$spath = "unix:///tmp/server1.sock";
+returnval::\$remote = "unix:///tmp/server1.sock";
 
 \$r = new returnval;
-\$r->resource();
+if (!is_resource(\$r->valid_resource())) {
+	echo "unreached";
+	exit(1);
+}
+EOF
+
+dotest invalid_resource 255 "Uncaught InvalidArgumentException: Can't transfer OpenSSL X.509: resource is not a stream or a socket" << EOF
+<?php
+require_once("${REMOTE}");
+require_once("${CLIENT}");
+require_once("${ERROR}");
+
+class returnval extends \\Rootnet\\Privsep\\Remote {
+}
+returnval::\$remote = "unix:///tmp/server1.sock";
+
+\$r = new returnval;
+if (!is_resource(\$r->invalid_resource())) {
+	echo "unreached";
+	exit(1);
+}
 EOF
 
 exit $EXITSTATUS

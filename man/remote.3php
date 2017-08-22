@@ -23,7 +23,7 @@ daemon.
 .Fd require_once("/path/to/remote.php");
 .Vt abstract class Nm
 .Vt public static
-.Va \eRootnet\ePrivsep\eRemote::$spath
+.Va \eRootnet\ePrivsep\eRemote::$remote
 .Sh DESCRIPTION
 The
 .Nm
@@ -38,27 +38,31 @@ This allows the programmer to call code living inside the daemon as if it was
 defined locally.
 .Pp
 The
-.Va \eRootnet\ePrivsep\eRemote::$spath
+.Va \eRootnet\ePrivsep\eRemote::$remote
 variable is used to determine the location of the daemon on a per class basis.
 This allows for the utilization of multiple daemons in a single application.
 Currently tcp and unix sockets are supported.
 Note that if multiple privsepd daemons are used that each class inheriting from
 remote needs to redefine
-.Va \eRootnet\ePrivsep\eRemote::$spath .
+.Va \eRootnet\ePrivsep\eRemote::$remote .
 If this is omitted the static variable in
 .Nm
 is used.
 .Pp
-Since
-.Fn __call
-and
-.Fn __callStatic
-don't support parameters by reference, methods that require them need to be
-implemented separately.
-The following universal method should be used:
+By default all calls are done by value.
+Arguments by reference are supported, but need to be enabled on a class by class
+and method by method basis via the following semantics:
 .Bd -literal -offset indent
 public [static] function <method>(&...$arguments) {
 	return self::call(__FUNCTION__, $arguments, $this);
+}
+.Ed
+The only exception to this rule is the constructor, which requires special
+internal bookkeeping.
+To add arguments by reference on constructor use the following code:
+.Bd -literal -offset indent
+public function __construct(&...$arguments) {
+	return $this->construct($arguments, $this);
 }
 .Ed
 .Pp
@@ -87,3 +91,8 @@ call will not return the remote class name.
 .%T get_class
 .%U http://php.net/manual/en/function.get-class.php
 .Re
+.Sh CAVEATS
+Arguments by reference only work on the direct arguments, and only for the
+duration of the call.
+Elements by reference in an array will be ignored, because there's currently no
+native option to determine if an element is a reference.

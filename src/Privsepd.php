@@ -18,13 +18,13 @@
 namespace Rootnet\Privsep;
 
 
-use Rootnet\Privsep\Client;
-use Rootnet\Privsep\Config;
 use Rootnet\Privsep\Whitelist\Privsepd as PrivsepdWhitelist;
 
 final class Privsepd
 {
     private $clients = [];
+    private $client;
+    private $logfd;
     private $lsock;
     private $name;
 
@@ -39,6 +39,8 @@ final class Privsepd
         ini_set("log_errors", "1");
         ini_set("error_log", "");
         ini_set("log_errors_max_len", "0");
+
+        $this->setErrorHandler();
     }
 
     public function run(): void
@@ -100,6 +102,10 @@ final class Privsepd
         }
         $this->lsock = $this->socket($socket);
 
+        if ($daemonize) {
+            $log = $this->prepareLog();
+        }
+
         $this->lockdown();
 
         if (($testfd = fopen($config->get("autoload"), "r")) === false) {
@@ -108,7 +114,7 @@ final class Privsepd
         fclose($testfd);
 
         if ($daemonize) {
-            $this->daemonize();
+            $this->daemonize($log);
         }
 
         trigger_error("Ready", E_USER_NOTICE);
@@ -122,29 +128,8 @@ final class Privsepd
  * No trigger_error with E_USER_ERROR should be called in the main process after
  * this function
  */
-    private function daemonize(): void
+    private function daemonize($log = null): void
     {
-        static $STDIN, $STDOUT, $STDERR;
-
-/* Enable logging */
-        openlog($this->name, LOG_PID | LOG_ODELAY, LOG_DAEMON);
-        ini_set("error_log", "syslog");
-
-        @fclose(STDIN);
-        @fclose(STDOUT);
-        @fclose(STDERR);
-/*
- * Open 3 new null descriptors, this to prevent new sockets to open on STDIN,
- * STDOUT, and STDERR. This could cause havoc if a function decides that these
- * descriptors could be usable targets.
- */
-        if (($STDIN = fopen("/dev/null", "r")) === false ||
-            ($STDOUT = fopen("/dev/null", "a")) === false ||
-            ($STDERR = fopen("/dev/null", "a")) === false
-        ) {
-            trigger_error("Unable to open /dev/null", E_USER_ERROR);
-        }
-
         switch (pcntl_fork()) {
             case -1:
                 trigger_error("pcntl_fork", E_USER_ERROR);
@@ -152,6 +137,15 @@ final class Privsepd
                 break;
             default:
                 exit(0);
+        }
+
+        if (isset($log)) {
+            $this->logfd = $log;
+        } else {
+            openlog($this->name, LOG_PID | LOG_ODELAY, LOG_DAEMON);
+            ini_set("error_log", "syslog");
+            unset($this->logfd);
+
         }
     }
 
@@ -163,7 +157,7 @@ final class Privsepd
  * so the only data is the closing of a socket.
  * This may change in the future
  */
-            if ($sock === $this->lsock) {
+            if (isset($this->lsock) && $sock === $this->lsock) {
                 if (($client = $this->newClient($sock)) !== null) {
                     $this->clients[$client["pid"]] = $client;
                 }
@@ -191,48 +185,53 @@ final class Privsepd
  * public, so make it a closure.
  */
         $signalHandler = function ($signo) {
+            pcntl_sigprocmask(SIG_BLOCK, [SIGINT, SIGTERM]);
+            fclose($this->lsock);
+
             if (!empty($this->clients)) {
                 trigger_error("Exiting: terminating clients", E_USER_NOTICE);
-            } else {
-                trigger_error("Exiting", E_USER_NOTICE);
-            }
-            pcntl_sigprocmask(SIG_BLOCK, [SIGINT, SIGTERM]);
 /*
  * Install signal handler so we wake up from time_nanosleep. This handler can't
  * be called from this context, so might as well be empty.
  */
-            pcntl_signal(SIGCHLD, function () {
-            });
+                pcntl_signal(SIGCHLD, function () {
+                });
 
-            foreach ($this->clients as $client) {
-                $this->killChild($client["pid"], SIGINT);
-            }
-            $rest = ["seconds" => 1, "nanoseconds" => 0];
-            while (
-                !empty($this->clients) &&
-                is_array($rest = time_nanosleep(
-                    $rest["seconds"],
-                    $rest["nanoseconds"]
-                ))
-            ) {
-                $status = null;
-                while (($pid = pcntl_wait($status, WNOHANG)) > 0) {
+                foreach ($this->clients as $client) {
+                    $this->killChild($client["pid"], SIGINT);
+                }
+                $rest = ["seconds" => 1, "nanoseconds" => 0];
+                while (
+                    !empty($this->clients) &&
+                    is_array($rest = time_nanosleep(
+                        $rest["seconds"],
+                        $rest["nanoseconds"]
+                    ))
+                ) {
+                    $status = null;
+                    while (($pid = pcntl_wait($status, WNOHANG)) > 0) {
+                        unset($this->clients[$pid]);
+                    }
+                }
+                foreach ($this->clients as $client) {
+                    $this->killChild($client["pid"], SIGKILL);
+                }
+                while (
+                    !empty($this->clients) &&
+                    ($pid = pcntl_wait($status)) > 0
+                ) {
                     unset($this->clients[$pid]);
                 }
             }
-            foreach ($this->clients as $client) {
-                $this->killChild($client["pid"], SIGKILL);
-            }
-            while (
-                !empty($this->clients) &&
-                ($pid = pcntl_wait($status)) > 0
-            ) {
-                unset($this->clients[$pid]);
-            }
+            trigger_error("Exiting", E_USER_NOTICE);
             exit(0);
         };
         pcntl_signal(SIGINT, $signalHandler);
-        pcntl_signal(SIGTERM, $signalHandler);
+        pcntl_signal(SIGTERM, function($signo) {
+            trigger_error("Exiting: waiting for clients", E_USER_NOTICE);
+            fclose($this->lsock);
+            unset($this->lsock);
+        });
     }
 
     private function killChild(int $client, int $signal): void
@@ -313,19 +312,32 @@ final class Privsepd
         }
     }
 
+    private function log(string $str): void {
+        $prefix = date("M m H:i:s") . " " . $this->name;
+        if (isset($this->client)) {
+            $prefix .= "[" . $this->client->getLid() . "]: ";
+        } else {
+            $prefix .= "[" . posix_getpid() . "]: ";
+        }
+
+        fwrite($this->logfd, $prefix . $str . "\n");
+    }
+
     private function manage(): void
     {
         $n = null;
 
         $this->installSignalHandler();
-        while (true) {
+        while (isset($this->lsock) || !empty($this->clients)) {
             $read = [];
-            $read[] = $this->lsock;
+            if (isset($this->lsock)) {
+                $read[] = $this->lsock;
+            }
             foreach ($this->clients as $client) {
                 $read[] = $client["sock"];
             }
 
-            $nstream = stream_select($read, $n, $n, $this->selectTimeout());
+            $nstream = @stream_select($read, $n, $n, $this->selectTimeout());
             pcntl_signal_dispatch();
             if ($nstream === false) {
                 continue;
@@ -334,6 +346,7 @@ final class Privsepd
             $this->killTimeout();
             $this->handleSockets($read);
         }
+        trigger_error("Exiting", E_USER_NOTICE);
     }
 
 /*
@@ -364,21 +377,20 @@ final class Privsepd
                 fclose($cc);
                 return null;
             case 0:
-                openlog(
-                    $this->name . "(client)",
-                    LOG_PID | LOG_ODELAY,
-                    LOG_DAEMON
-                );
+                $this->name .= "(client)";
+                if (!isset($this->logfd)) {
+                    openlog($this->name, LOG_PID | LOG_ODELAY, LOG_DAEMON);
+                }
                 pcntl_signal(SIGINT, SIG_DFL);
                 pcntl_signal(SIGTERM, SIG_DFL);
                 unset($this->clients);
-                cli_set_process_title($this->name . " (client)");
+                cli_set_process_title($this->name);
                 $conf = Config::get_instance();
                 require_once($conf->get("autoload"));
                 fclose($sp[0]);
                 fclose($lsock);
                 try {
-                    $client = new Client(
+                    $this->client = new Client(
                         $cc,
                         new PrivsepdWhitelist($conf->get("callable")),
                         true
@@ -387,7 +399,7 @@ final class Privsepd
                     trigger_error($e->getMessage(), E_USER_ERROR);
                     exit(1);
                 }
-                $client->trace = $conf->get("trace");
+                $this->client->trace = $conf->get("trace");
                 try {
                     while (Client::waitInput() !== false) {
                         /* EMPTY */
@@ -409,6 +421,68 @@ final class Privsepd
                 $client["start"] = time();
                 $client["sock"] = $sp[0];
                 return $client;
+        }
+    }
+
+/*
+ * In a perfect world this function would be part of daemonize.
+ * Unfortunately inside a chroot we don't always have /dev/null.
+ * Even if we pre-opened /dev/null it's impossible to tell on which fd it's
+ * opened, so we can't rely on fopen("php://fd/" . (int) $devnull, "w");
+ * Our best option is to open the /dev/null fd's before chrooting and setting up
+ * the logger inside the daemonize function.
+ * Also open the log, so it's not limited to the chroot.
+ *
+ * After this function echo, var_dump and friends won't work anymore.
+ * Only writing directly to $this->logfd directly or via
+ * trigger_error/throwables will work.
+ */
+    private function prepareLog()
+    {
+        static $STDIN, $STDOUT, $STDERR;
+
+        @fclose(STDIN);
+        @fclose(STDOUT);
+        @fclose(STDERR);
+/*
+ * Open 3 new null descriptors, this to prevent new sockets to open on STDIN,
+ * STDOUT, and STDERR. This could cause havoc if a function decides that these
+ * descriptors could be usable targets.
+ */
+        if (($STDIN = fopen("/dev/null", "r")) === false ||
+            ($STDOUT = fopen("/dev/null", "a")) === false ||
+            ($STDERR = fopen("/dev/null", "a")) === false
+        ) {
+            trigger_error("Unable to open /dev/null", E_USER_ERROR);
+        }
+
+        $config = Config::get_instance();
+        $log = $config->get("log");
+        if (!isset($log)) {
+            return null;
+        }
+
+        if (isset($log)) {
+            $mask = umask(0777);
+            if (($logfd = fopen($log["path"], "a")) === false) {
+                trigger_error("fopen: " . $log["path"], E_USER_ERROR);
+            }
+            umask($mask);
+            if (isset($log["owner"])) {
+                if (!chown($log["path"], $log["owner"])) {
+                    trigger_error("chown", E_USER_ERROR);
+                }
+            }
+            if (isset($log["group"])) {
+                if (!chgrp($log["path"], $log["group"])) {
+                    trigger_error("chgrp", E_USER_ERROR);
+                }
+            }
+            $log["perm"] = $log["perm"] ?? 0640;
+            if (!chmod($log["path"], $log["perm"])) {
+                trigger_error("chmod", E_USER_ERROR);
+            }
+            return $logfd;
         }
     }
 
@@ -439,6 +513,61 @@ final class Privsepd
             }
         }
         return $sleep > 0 ? $sleep : 0;
+    }
+
+    private function setErrorHandler()
+    {
+// Safeguard our stderr fd, so still write to it after fd 2 has been closed.
+        $this->logfd = fopen("php://stderr", "w");
+        $handler = function(int $errno, string $str, string $file, int $line) {
+            if (error_reporting() === 0) {
+                return;
+            }
+            if (!isset($this->logfd)) {
+                return false;
+            }
+            $prefix = $suffix = "";
+
+            $err = E_ERROR | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR;
+            $err |= E_RECOVERABLE_ERROR;
+            $warn = E_WARNING | E_CORE_WARNING;
+            $warn |= E_COMPILE_WARNING | E_USER_WARNING;
+// User notices are reserved for informational purposes
+            $notice = E_NOTICE | E_STRICT;
+            $deprecated = E_DEPRECATED | E_USER_DEPRECATED;
+            if ($errno & $err) {
+                $prefix .= "PHP Fatal error: ";
+                $suffix = " in " . $file . " on line ".$line;
+            } elseif ($errno & $warn) {
+                $prefix .= "PHP Warning: ";
+                $suffix = " in " . $file . " on line ".$line;
+            } elseif ($errno & $notice) {
+                $prefix .= "PHP Notice: ";
+                $suffix = " in " . $file . " on line ".$line;
+            } elseif ($errno & $deprecated) {
+                $prefix .= "PHP Deprecated: ";
+                $suffix = " in " . $file . " on line ".$line;
+            }
+
+            $this->log($prefix . $str . $suffix);
+            if ($errno & $err) {
+                exit(255);
+            }
+        };
+        set_error_handler($handler);
+        set_exception_handler(function($t) {
+            if (!isset($this->logfd)) {
+                throw $t;
+            }
+            $this->log(
+                "PHP Fatal Error: Uncaught " . get_class($t) . ": " .
+                $t->getMessage() . " in " . $t->getFile() . ":" .
+                $t->getLine() . "\n" .
+                "Stack trace:\n" .
+                $t->getTraceAsString()
+            );
+            exit(255);
+        });
     }
 
 // We can't use resource as a return type

@@ -57,7 +57,7 @@ log1=`mktemp /tmp/server1.log.XXXXXX`
 PHP=${PHP:-`which php`}
 REMOTE=${REMOTE:-../src/Remote.php}
 CLIENT=${CLIENT:-../src/Client.php}
-ERROR=${ERROR:-../src/Error/RemoteError.php}
+ERROR=${ERROR:-../src/Throwable/RemoteError.php}
 
 ${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
@@ -75,7 +75,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (\$a->publicget !== TRUE) {
@@ -93,7 +93,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (\$a->unimplget !== NULL) {
@@ -112,7 +112,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 \$a->privateget;
@@ -127,7 +127,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 \$a->unavailpubget;
@@ -141,7 +141,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 \$a->unavailprivateget;
@@ -155,7 +155,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 \$a->unavailunimplget;
@@ -171,7 +171,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (\$a->publicset === TRUE) {
@@ -193,7 +193,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (\$a->unimplset !== NULL) {
@@ -216,7 +216,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 \$a->privateset = TRUE;
@@ -230,7 +230,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 \$a->unavailpubset = TRUE;
@@ -245,7 +245,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 \$a->unavailprivateset = TRUE;
@@ -260,7 +260,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 \$a->unavailunimplset = TRUE;
@@ -276,7 +276,7 @@ require_once("${ERROR}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->publicissettrue) !== true) {
@@ -293,7 +293,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->publicissetfalse) !== false) {
@@ -310,7 +310,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->privateisset) !== false) {
@@ -326,7 +326,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->unimplisset) !== false) {
@@ -342,7 +342,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->unavailpublicissettrue) !== false) {
@@ -358,7 +358,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->unavailpublicissetfalse) !== false) {
@@ -374,7 +374,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->unavailprivateisset) !== false) {
@@ -390,7 +390,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->unavailunimplisset) !== false) {
@@ -406,7 +406,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 if (isset(\$a->publicunset) === false) {
@@ -427,7 +427,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 unset(\$a->privateunset);
@@ -440,7 +440,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 unset(\$a->unimplunset);
@@ -453,7 +453,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 unset(\$a->unavailpublicunset);
@@ -466,7 +466,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 unset(\$a->unavailprivateunset);
@@ -479,7 +479,7 @@ require_once("${CLIENT}");
 
 class attribute extends \\Rootnet\\Privsep\\Remote {
 }
-attribute::\$spath = "unix:///tmp/server1.sock";
+attribute::\$remote = "unix:///tmp/server1.sock";
 
 \$a = new attribute;
 unset(\$a->unavailunimplunset);

@@ -17,7 +17,7 @@
 
 declare(strict_types=1);
 
-require_once "src/Error/RemoteError.php";
+require_once "src/Throwable/RemoteError.php";
 require_once "src/Client.php";
 require_once "src/Config.php";
 require_once "src/Remote.php";

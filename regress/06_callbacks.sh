@@ -56,7 +56,7 @@ log1=`mktemp /tmp/server1.log.XXXXXX`
 PHP=${PHP:-`which php`}
 REMOTE=${REMOTE:-../src/Remote.php}
 CLIENT=${CLIENT:-../src/Client.php}
-ERROR=${ERROR:-../src/Error/RemoteError.php}
+ERROR=${ERROR:-../src/Throwable/RemoteError.php}
 
 ${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
@@ -76,7 +76,7 @@ require_once("${ERROR}");
 class callbacks extends \\Rootnet\\Privsep\\Remote {
     public static \$debug = false;
 }
-callbacks::\$spath = "unix:///tmp/server1.sock";
+callbacks::\$remote = "unix:///tmp/server1.sock";
 
 \$c = new callbacks;
 echo "1";
@@ -96,7 +96,7 @@ require_once("${ERROR}");
 class callbacks extends \\Rootnet\\Privsep\\Remote {
     public static \$debug = false;
 }
-callbacks::\$spath = "unix:///tmp/server1.sock";
+callbacks::\$remote = "unix:///tmp/server1.sock";
 
 \$c = new callbacks;
 echo "1";
@@ -120,7 +120,7 @@ require_once("${ERROR}");
 class callbacks extends \\Rootnet\\Privsep\\Remote {
     public static \$debug = false;
 }
-callbacks::\$spath = "unix:///tmp/server1.sock";
+callbacks::\$remote = "unix:///tmp/server1.sock";
 
 \$c = new callbacks;
 echo "1";
@@ -144,7 +144,7 @@ require_once("${ERROR}");
 class callbacks extends \\Rootnet\\Privsep\\Remote {
     public static \$debug = false;
 }
-callbacks::\$spath = "unix:///tmp/server1.sock";
+callbacks::\$remote = "unix:///tmp/server1.sock";
 
 \$c = new callbacks;
 echo "1";
@@ -164,7 +164,7 @@ require_once("${ERROR}");
 class callbacks extends \\Rootnet\\Privsep\\Remote {
     public static \$debug = false;
 }
-callbacks::\$spath = "unix:///tmp/server1.sock";
+callbacks::\$remote = "unix:///tmp/server1.sock";
 
 \$c = new callbacks;
 echo "1";
@@ -188,7 +188,7 @@ require_once("${ERROR}");
 class callbacks extends \\Rootnet\\Privsep\\Remote {
     public static \$debug = false;
 }
-callbacks::\$spath = "unix:///tmp/server1.sock";
+callbacks::\$remote = "unix:///tmp/server1.sock";
 
 \$c = new callbacks;
 echo "1";
@@ -213,7 +213,7 @@ require_once("${ERROR}");
 class callbacks extends \\Rootnet\\Privsep\\Remote {
     public static \$debug = false;
 }
-callbacks::\$spath = "unix:///tmp/server1.sock";
+callbacks::\$remote = "unix:///tmp/server1.sock";
 
 \$c = new callbacks;
 echo "1";

@@ -20,7 +20,7 @@ declare(strict_types=1);
 namespace Rootnet\Privsep;
 
 
-use Rootnet\Privsep\Error\RemoteError;
+use Rootnet\Privsep\Throwable\RemoteError;
 use Rootnet\Privsep\Remote\Fallback;
 use Rootnet\Privsep\Whitelist\WhitelistInterface;
 
@@ -28,21 +28,36 @@ final class Client
 {
     public $trace = false;
     public $traceStrlen = 18;
-    private $closures = [];
     private $handshakeCount = 0;
-    private $ignoreUnknownInput = false;
     private $lid;
     private $newObjects = [];
     private $objects = [];
     private $passThrowReenter = 0;
     private $returns = [];
     private $readbuf = "";
-    private $rclosures = [];
+/**
+ * @var array Contains the locally opened resources that have been transferred
+ */
+    private $resources = [];
     private $remoteError;
     private $rid;
     private $robjects = [];
+/**
+ * @var array Contains the remote opened resources that have been transferred
+ */
+    private $rresources = [];
     private $sock;
+    private $supportedVersions = ["1.0", "1.1"];
     private $throwableToNetReenter = 0;
+/**
+ * @var array Contains the locally opened resources that are to be transferred
+ */
+    private $tresources = [];
+/**
+ * @var array Contains the remote opened resources that are to be transferred
+ */
+    private $presources = [];
+    private $version = "";
     private $whitelist;
 
     public static $warnWeakref = true;
@@ -75,7 +90,7 @@ final class Client
  * This method, although not dangerous, is not intended for public use.
  * Use \Rootnet\Privsep\Remote interfaces if at all possible.
  */
-    public function call($function, array &$arguments, $class = null)
+    public function call($function, array $arguments, $class = null)
     {
         if (isset($this->remoteError)) {
             throw $this->remoteError;
@@ -158,6 +173,11 @@ final class Client
         return $res["return"];
     }
 
+    public function getLid()
+    {
+        return $this->lid;
+    }
+
     public static function waitInput(self $winstance = null): bool
     {
         $null = null;
@@ -199,26 +219,6 @@ final class Client
         return true;
     }
 
-    private function closureToNet(\Closure $closure): \stdClass
-    {
-        $nclosure = new \stdClass;
-        $nclosure->type = "closure";
-        $id = array_search($closure, $this->rclosures, true);
-        if ($id !== false) {
-            $nclosure->owner = $this->rid;
-        } else {
-            $nclosure->owner = $this->lid;
-            $id = array_search($closure, $this->closures, true);
-            if ($id === false) {
-                $this->closures[] = $closure;
-                end($this->closures);
-                $id = key($this->closures);
-            }
-        }
-        $nclosure->id = $id;
-        return $nclosure;
-    }
-
     private function traceCall(
         int $id,
         $function,
@@ -235,6 +235,26 @@ final class Client
         );
     }
 
+    private function allowTransferResource(): void
+    {
+        if (version_compare($this->version, "1.1", "lt")) {
+            throw new \InvalidArgumentException(
+                "Transferring resources not supported"
+            );
+        }
+        if (!extension_loaded("sockets")) {
+            throw new \Exception(
+                "sockets extension not loaded: can't tranfer resources"
+            );
+        }
+        $streamType = stream_get_meta_data($this->sock)["stream_type"];
+        if ($streamType !== "unix_socket") {
+            throw new \DomainException(
+                "resources can only be transferred over unix socket"
+            );
+        }
+    }
+
     private function traceClass($class): string
     {
         if (is_string($class)) {
@@ -243,25 +263,13 @@ final class Client
 
         $cname = "";
         assert(is_object($class));
-        if ($class instanceof \Closure) {
-            $id = array_search($class, $this->closures, true);
-            if ($id !== false) {
-                $cname = "Closure";
-            } else {
-                $id = array_search($class, $this->rclosures, true);
-                if ($id !== false) {
-                    $cname = "rClosure";
-                }
-            }
+        $id = array_search($class, $this->objects, true);
+        if ($id !== false) {
+            $cname = "Object(" . get_class($class) . ")";
         } else {
-            $id = array_search($class, $this->objects, true);
+            $id = $this->weakArraySearch($class, $this->robjects, true);
             if ($id !== false) {
-                $cname = "Object(" . get_class($class) . ")";
-            } else {
-                $id = $this->weakArraySearch($class, $this->robjects, true);
-                if ($id != false) {
-                    $cname = "rObject(" . get_class($class) . ")";
-                }
+                $cname = "rObject(" . get_class($class) . ")";
             }
         }
         assert(!empty($cname));
@@ -337,7 +345,7 @@ final class Client
         return $traceCall;
     }
 
-    private function traceVar($var)
+    private function traceVar($var): string
     {
         if (is_string($var)) {
             if (!is_int($this->traceStrlen)) {
@@ -356,8 +364,16 @@ final class Client
             return "array";
         } elseif (is_null($var)) {
             return "null";
+        } elseif (is_resource($var)) {
+            if (isset($this->rresources[(int) $var])) {
+                return "rresource(" . $this->rresources[(int) $var]["id"] .
+                    ") of type (" . get_resource_type($var) . ")";
+            } else {
+                return "resource(" . (int) $var . ") of type (" .
+                    get_resource_type($var) . ")";
+            }
         } else {
-            return $var;
+            return (string) $var;
         }
     }
 
@@ -386,9 +402,10 @@ final class Client
                 );
                 switch ($var->type) {
                     case "closure":
-                        return $this->netToClosure($var);
                     case "object":
                         return $this->netToObject($var);
+                    case "resource":
+                        return $this->netToResource($var);
                     case "throwable":
                         return $this->netToThrowable($var);
                 }
@@ -407,6 +424,10 @@ final class Client
             case "throwable":
                 $input["throw"]->remoteClientReceived = true;
                 throw $input["throw"];
+            case "transferResource":
+                $this->presources = $input["ids"];
+                $this->writeArray(["type" => "transferReady"]);
+                break;
             case "return":
                 assert(is_int($input["id"]));
                 assert(array_key_exists("return", $input));
@@ -548,10 +569,8 @@ final class Client
                 }
                 break;
             default:
-                if (!$this->ignoreUnknownInput) {
 /* Gently explode in your face */
-                    throw new \Error("Unknown input: " . $input["type"]);
-                }
+                throw new \Error("Unknown input: " . $input["type"]);
         }
     }
 
@@ -575,7 +594,7 @@ final class Client
  * Introduction of changes should be kept to a minimum.
  * This is privsepd, not kitchensinkd!
  */
-        $welcome = "ROPE [1.0]: ";
+        $welcome = "ROPE [" . implode(",", $this->supportedVersions) ."]: ";
 /*
  * Assume that if we need 5 handshakes both sides use pid for identification and
  * they happen to be the same. 2 should be enough in most conditions, but pick a
@@ -620,19 +639,16 @@ final class Client
 
         $response = substr($response, strlen($match[0]));
         $versions = explode(",", $match[0]);
-        $compatible = false;
 /* Accept any protocol version of 1.n */
         foreach ($versions as $version) {
-            $version = explode(".", $version);
-            if ((int) $version[0] === 1) {
-                $compatible = true;
-                if ((int) $version[1] > 0) {
-                    $this->ignoreUnknownInput = true;
-                    break;
-                }
+            if (
+                in_array($version, $this->supportedVersions) &&
+                version_compare($version, $this->version, "gt")
+            ) {
+                $this->version = $version;
             }
         }
-        if (!$compatible) {
+        if (empty($this->version)) {
             throw new \Error("No compatible protocol version found");
         }
 
@@ -658,12 +674,41 @@ final class Client
         }
     }
 
+    private function installResources(array $resources): void
+    {
+        $nresources = [];
+        foreach ($resources as $resource) {
+            reset($this->presources);
+            $nresource["id"] = key($this->presources);
+            if (
+                array_shift($this->presources) === "stream" &&
+                get_resource_type($resource) === "socket"
+            ) {
+                $resource = socket_export_stream($resource);
+            }
+            $nresource["resource"]  = $resource;
+            $nresources[(int) $resource] = $nresource;
+        }
+        if (!empty($this->presources)) {
+            throw new \UnexpectedValueException(
+                "Fewer resources received than announced"
+            );
+        }
+        foreach ($nresources as $id => $resource) {
+            $this->rresources[$id] = $resource;
+        }
+    }
+
     private function objectToNet($object): \stdClass
     {
         assert(is_object($object));
         $nobject = new \stdClass;
-        $nobject->type = "object";
-        $nobject->name = get_class($object);
+        if ($object instanceof \Closure) {
+            $nobject->type = "closure";
+        } else {
+            $nobject->type = "object";
+            $nobject->name = get_class($object);
+        }
         $id = $this->weakArraySearch($object, $this->robjects, true);
         if ($id !== false) {
             $nobject->owner = $this->rid;
@@ -680,26 +725,8 @@ final class Client
         return $nobject;
     }
 
-    private function netToClosure(\stdClass $nclosure): \Closure
-    {
-        assert($nclosure->type === "closure");
-        assert(isset($nclosure->id, $nclosure->owner));
-        if ($nclosure->owner === $this->lid) {
-            assert(isset($this->closures[$nclosure->id]));
-            return $this->closures[$nclosure->id];
-        }
-        if (!isset($this->rclosures[$nclosure->id])) {
-            $closure = function (&...$arguments) use ($nclosure) {
-                return $this->call($this->rclosures[$nclosure->id], $arguments);
-            };
-            $this->rclosures[$nclosure->id] = $closure;
-        }
-        return $this->rclosures[$nclosure->id];
-    }
-
     private function netToObject(\stdClass $nobject)
     {
-        assert($nobject->type === "object");
         assert(isset($nobject->id, $nobject->owner));
         $robject = null;
         if ($nobject->owner === $this->lid) {
@@ -708,10 +735,23 @@ final class Client
         }
         assert(isset($nobject->name));
         if (!isset($this->robjects[$nobject->id])) {
-            if (is_a($nobject->name, "\\Rootnet\\Privsep\\Remote", true)) {
-                $object = new $nobject->name($this);
+            if ($nobject->type === "closure") {
+                $object = function (&...$args) use ($nobject) {
+                    $closure = $this->robjects[$nobject->id];
+                    if (
+                        extension_loaded("Weakref") &&
+                        is_a($this->robjects[$nobject->id], "\\Weakref", false)
+                    ) {
+                        $closure = $closure->get();
+                    }
+                    return $this->call($closure, $args);
+                };
             } else {
-                $object = new Fallback($this);
+                if (is_a($nobject->name, "\\Rootnet\\Privsep\\Remote", true)) {
+                    $object = new $nobject->name($this);
+                } else {
+                    $object = new Fallback($this);
+                }
             }
             $this->robjects[$nobject->id] = $object;
         }
@@ -734,6 +774,25 @@ final class Client
             return $this->robjects[$nobject->id]->get();
         }
         return $this->robjects[$nobject->id];
+    }
+
+    private function netToResource(\stdClass $nresource)
+    {
+        assert($nresource->type === "resource");
+        assert(isset($nresource->id, $nresource->owner));
+
+        if ($nresource->owner === $this->lid) {
+            if (!isset($this->resources[$nresource->id])) {
+                throw new \UnexpectedValueException("Invalid resource id");
+            }
+            return $this->resources[$nresource->id];
+        }
+        foreach ($this->rresources as $resource) {
+            if ($resource["id"] === $nresource->id) {
+                return $resource["resource"];
+            }
+        }
+        throw new \LogicException("Resource not available");
     }
 
     private function netToThrowable(\stdClass $nthrowable): \Throwable
@@ -833,6 +892,30 @@ final class Client
         }
     }
 
+    private function prepareTransfer(): ?array
+    {
+            if (empty($this->tresources)) {
+                return null;
+            }
+            $transfer = ["type" => "transferResource"];
+            foreach ($this->tresources as $res) {
+                $transfer["ids"][(int) $res] = get_resource_type($res);
+            }
+            $resources = $this->tresources;
+            $this->tresources = [];
+            $this->writeArray($transfer);
+            $response = $this->readArray();
+            if (
+                !isset($response["type"]) &&
+                $response["type"] !== "transferReady"
+            ) {
+                throw new \UnexpectedValueException(
+                    "Invalid response type: Expected transferReady"
+                );
+            }
+            return $resources;
+    }
+
     private function printThrowable(\Throwable $t): ?string
     {
         if (
@@ -854,19 +937,38 @@ final class Client
     private function readArray(): array
     {
         while (($res = @unserialize($this->readbuf)) === false) {
-            $read = stream_get_meta_data($this->sock)["unread_bytes"];
-            if (
-                ($res = fread($this->sock, !$read ? 1024 : $read)) === false ||
-                $res === ""
-            ) {
-                $this->remoteError = new RemoteError(
-                    "Connection reset by peer",
-                    0
-                );
-                $this->remoteError->setActiveObjects($this->robjects);
-                throw $this->remoteError;
-            }
-            $this->readbuf .= $res;
+            $read = 1024;
+            do {
+                if (!empty($this->presources)) {
+                    $clen = socket_cmsg_space(
+                        SOL_SOCKET,
+                        SCM_RIGHTS,
+                        count($this->presources)
+                    );
+                    $data = ["controllen" => $clen];
+                    $sock = socket_import_stream($this->sock);
+                    socket_recvmsg($sock, $data);
+                    if (!empty($data["control"])) {
+                        $this->installResources($data["control"][0]["data"]);
+                    }
+                    $res = "";
+                    foreach ($data["iov"] as $iov) {
+                        $res .= $iov;
+                    }
+                } else {
+                    $res = fread($this->sock, $read);
+                }
+                if ($res === "" || $res === false) {
+                    $this->remoteError = new RemoteError(
+                        "Connection reset by peer",
+                        0
+                    );
+                    $this->remoteError->setActiveObjects($this->robjects);
+                    throw $this->remoteError;
+                }
+                $this->readbuf .= $res;
+                $read = stream_get_meta_data($this->sock)["unread_bytes"];
+            } while ($read > 0);
         }
         $this->readbuf = substr($this->readbuf, strlen(serialize($res)));
 
@@ -887,6 +989,24 @@ final class Client
         }
         $res = $this->fromLine($res);
         return $res;
+    }
+
+    private function resourceToNet($resource)
+    {
+        $this->allowTransferResource();
+        $nresource = new \StdClass;
+        $nresource->type = "resource";
+        if (isset($this->rresources[(int) $resource])) {
+            $nresource->owner = $this->rid;
+            $nresource->id = $this->rresources[(int) $resource]["id"];
+        } else {
+            if (!isset($this->resources[(int) $resource])) {
+                $this->tresources[] = $resource;
+            }
+            $nresource->owner = $this->lid;
+            $nresource->id = (int) $resource;
+        }
+        return $nresource;
     }
 
     private function throw(\Throwable $t): void
@@ -935,25 +1055,38 @@ final class Client
 
     private function toLine($var)
     {
+/*
+ * If an argument to a method/function is not used after the call the calling
+ * scope drops reference during the execution of the method/function. Combining
+ * this with a remote object stored in a Weakref object means we can hit a
+ * reference count of 0 on the Weakreffed object and thus call its destructor
+ * before sending over this request, resulting in a failing fromLine on the
+ * remote side.
+ * Not overwriting $var prevents a reference count of 0 on the variable
+ * (remote object) and thus a premature calling of the destructor.
+ */
         switch (gettype($var)) {
             case "array":
+                $rvar = [];
                 foreach ($var as $key => $value) {
-                    $var[$key] = $this->toLine($value);
+                    $rvar[$key] = $this->toLine($value);
                 }
                 break;
             case "object":
-                if ($var instanceof \Closure) {
-                    $var = $this->closureToNet($var);
-                } elseif ($var instanceof \Throwable) {
-                    $var = $this->throwableToNet($var);
+                if ($var instanceof \Throwable) {
+                    $rvar = $this->throwableToNet($var);
                 } else {
-                    $var = $this->objectToNet($var);
+                    $rvar = $this->objectToNet($var);
                 }
                 break;
             case "resource":
-                throw new \TypeError("Transferring resources not supported");
+                $rvar = $this->resourceToNet($var);
+                break;
+            default:
+                $rvar = $var;
+
         }
-        return $var;
+        return $rvar;
     }
 
     private function verifyCall(
@@ -1003,14 +1136,10 @@ final class Client
             if (is_a($straw, "\\Weakref")) {
                 $straw = $straw->get();
             }
-            if ($strict) {
-                if ($needle === $straw) {
-                    return $key;
-                }
-            } else {
-                if ($needle == $straw) {
-                    return $key;
-                }
+            if ($strict && $needle === $straw) {
+                return $key;
+            } elseif (!$strict && $needle == $straw) {
+                return $key;
             }
         }
         return false;
@@ -1019,12 +1148,51 @@ final class Client
     private function writeArray(array $call): void
     {
         $call = $this->toLine($call);
-        $call = serialize($call);
+        $resources = $this->prepareTransfer();
 
+        $call = serialize($call);
         $written = 0;
         do {
-            substr($call, $written);
-            $written = fwrite($this->sock, $call);
+            $call = substr($call, $written);
+            if (!empty($resources)) {
+                $sock = socket_import_stream($this->sock);
+                set_error_handler(function($errno, $errstr) use ($resources) {
+                    restore_error_handler();
+                    preg_match(
+                        "/socket_sendmsg\(\): error converting user data " .
+                        "\(path: msghdr > control > element #\d+ > data > " .
+                        "element #(\d+)\)(.*)/",
+                        $errstr,
+                        $match
+                    );
+                    if (!is_null($match)) {
+                        throw new \InvalidArgumentException(
+                            "Can't transfer " . get_resource_type(
+                                $resources[$match[1] - 1]
+                            ) . $match[2]
+                        );
+                    } else {
+                        throw new \Exception($errstr);
+                    }
+                });
+                $written = socket_sendmsg(
+                    $sock,
+                    [
+                        "control"   => [[
+                            "level" => SOL_SOCKET,
+                            "type"  => SCM_RIGHTS,
+                            "data"  => $resources
+                        ]],
+                        "iov"       => [$call]
+                    ]
+                );
+                restore_error_handler();
+                foreach ($resources as $resource) {
+                    $this->resources[(int) $resource] = $resource;
+                }
+            } else {
+                $written = fwrite($this->sock, $call);
+            }
             if ($written === false || $written === 0) {
                 $this->remoteError = new RemoteError(
                     "Connection reset by peer",

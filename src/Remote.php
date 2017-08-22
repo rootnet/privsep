@@ -27,27 +27,21 @@ abstract class Remote
     private $client;
     private $orig;
 
-    public static $spath;
+    public static $remote;
 
-    final public function __construct(&...$arguments)
+    public function __construct(...$arguments)
     {
-/*
- * With this combination of arguments, assume we're being initialized from
- * \Rootnet\Privsep\Client. This is not 100% safe, but client shouldn't be used
- * directly from anywhere, so it's a fair bet.
- */
-        if (count($arguments) === 1 && $arguments[0] instanceof Client) {
-            $this->client = $arguments[0];
-            return;
-        }
-        if (!isset($this->client)) {
-            $this->client = self::getClient();
-        }
-        self::call(__FUNCTION__, $arguments, $this);
-        if (extension_loaded("Weakref")) {
-            $this->orig = new \Weakref($this);
-        } else {
-            $this->orig = $this;
+        $origArguments = $arguments;
+        $this->construct($arguments);
+        if (self::arrayDiff($arguments, $origArguments) === false) {
+            throw new \Error("'" . get_called_class() . "::__construct' has " .
+                "parameters by reference. Please implement it in '\\" .
+                get_called_class() . "' as:\n" .
+                "public function __construct(&...\$arguments) {\n" .
+                "    \$this->construct(\$arguments);\n" .
+                "}\n",
+                E_USER_WARNING
+            );
         }
     }
 
@@ -65,11 +59,7 @@ abstract class Remote
             $arguments = [$this->orig];
         }
         self::call(__FUNCTION__, $arguments, $this);
-        if (extension_loaded("Weakref")) {
-            $this->orig = new \Weakref($this);
-        } else {
-            $this->orig = $this;
-        }
+        $this->orig = extension_loaded("Weakref") ? new \Weakref($this) : $this;
     }
 
     final public function __get($key)
@@ -112,9 +102,9 @@ abstract class Remote
         return self::call(__FUNCTION__, $arguments, $this);
     }
 
-    final public function __invoke(...$arguments)
+    public function __invoke(...$arguments)
     {
-        return self::call(__FUNCTION__, $arguments, $this);
+        return $this->__call("__invoke", $arguments);
     }
 
     final static public function __set_state()
@@ -182,13 +172,34 @@ abstract class Remote
         return true;
     }
 
-    final protected static function call($method, &$arguments, $class)
-    {
+    final protected static function call(
+        string $method,
+        array $arguments,
+        $class
+    ) {
         self::verifyArguments($arguments, $class);
         if (!is_object($class)) {
             return self::getClient()->call($method, $arguments, $class);
         }
         return self::getClient($class)->call($method, $arguments, $class);
+    }
+
+    final protected function construct(array $arguments)
+    {
+/*
+ * With this combination of arguments, assume we're being initialized from
+ * \Rootnet\Privsep\Client. This is not 100% safe, but client shouldn't be used
+ * directly from anywhere, so it's a fair bet.
+ */
+        if (count($arguments) === 1 && $arguments[0] instanceof Client) {
+            $this->client = $arguments[0];
+            return;
+        }
+        if (!isset($this->client)) {
+            $this->client = self::getClient();
+        }
+        self::call("__construct", $arguments, $this);
+        $this->orig = extension_loaded("Weakref") ? new \Weakref($this) : $this;
     }
 
     final private static function getClient(self $inst = null)
@@ -199,23 +210,30 @@ abstract class Remote
             return $inst->client;
         }
 
-        $path = get_called_class()::$spath;
-        if (!is_string($path)) {
+        $class = get_called_class();
+        $remote = $class::$remote;
+        if (!is_string($remote) && !$remote instanceof Client) {
+            if (($type = gettype($remote)) === "object") {
+                $type = get_class($remote);
+            }
             throw new \Error(
-                get_called_class() . "::\$path: expecting string, " .
-                gettype($path) . " given."
+                $class . "::\$remote: expecting string or Client, " .  $type .
+                " given."
             );
         }
-        if (!isset($clients[$path])) {
+        if ($remote instanceof Client) {
+            return $remote;
+        }
+        if (!isset($clients[$remote])) {
             $errno = null;
             $errstr = null;
-            $sock = stream_socket_client($path, $errno, $errstr);
+            $sock = stream_socket_client($remote, $errno, $errstr);
             if ($sock === false) {
                 throw new \Error("stream_socket_client: " . $errstr);
             }
-            $clients[$path] = new Client($sock);
+            $clients[$remote] = new Client($sock);
         }
-        return $clients[$path];
+        return $clients[$remote];
     }
 
     /*

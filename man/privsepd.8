@@ -48,6 +48,15 @@ cascading throwables.
 Incoming function-, method- and attributerequests and returning throwables
 originating are subject to a whitelist check before returning.
 .Pp
+If
+.Nm
+received a SIGHUP a graceful shutdown will be performed.
+This means that active connections will be preserved, but no new connections are
+accepted.
+A new daemon can be started over the old listening socket after the signal has
+been send.
+This is useful for when the daemon needs a restart after a logrotate.
+.Pp
 The options are as follows:
 .Bl -tag -width xCxchroot
 .It Fl C Ar chroot

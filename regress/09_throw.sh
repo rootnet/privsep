@@ -56,7 +56,7 @@ log1=`mktemp /tmp/server1.log.XXXXXX`
 PHP=${PHP:-`which php`}
 REMOTE=${REMOTE:-../src/Remote.php}
 CLIENT=${CLIENT:-../src/Client.php}
-ERROR=${ERROR:-../src/Error/RemoteError.php}
+ERROR=${ERROR:-../src/Throwable/RemoteError.php}
 
 ${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
@@ -75,7 +75,7 @@ require_once("${ERROR}");
 
 class cthrow extends \\Rootnet\\Privsep\\Remote {
 }
-cthrow::\$spath = "unix:///tmp/server1.sock";
+cthrow::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new cthrow;
 \$t->throwAccept();
@@ -89,7 +89,7 @@ require_once("${ERROR}");
 
 class cthrow extends \\Rootnet\\Privsep\\Remote {
 }
-cthrow::\$spath = "unix:///tmp/server1.sock";
+cthrow::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new cthrow;
 \$t->throwIndirectAccept();
@@ -103,7 +103,7 @@ require_once("${ERROR}");
 
 class cthrow extends \\Rootnet\\Privsep\\Remote {
 }
-cthrow::\$spath = "unix:///tmp/server1.sock";
+cthrow::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new cthrow;
 \$t->throwDeny();
@@ -117,7 +117,7 @@ require_once("${ERROR}");
 
 class cthrow extends \\Rootnet\\Privsep\\Remote {
 }
-cthrow::\$spath = "unix:///tmp/server1.sock";
+cthrow::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new cthrow;
 \$t->throwIndirectDeny();
@@ -131,7 +131,7 @@ require_once("${ERROR}");
 
 class cthrow extends \\Rootnet\\Privsep\\Remote {
 }
-cthrow::\$spath = "unix:///tmp/server1.sock";
+cthrow::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new cthrow;
 try {
@@ -151,7 +151,7 @@ require_once("${ERROR}");
 
 class cthrow extends \\Rootnet\\Privsep\\Remote {
 }
-cthrow::\$spath = "unix:///tmp/server1.sock";
+cthrow::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new cthrow;
 try {
@@ -171,7 +171,7 @@ require_once("${ERROR}");
 
 class cthrow extends \\Rootnet\\Privsep\\Remote {
 }
-cthrow::\$spath = "unix:///tmp/server1.sock";
+cthrow::\$remote = "unix:///tmp/server1.sock";
 
 \$t = new cthrow;
 try {

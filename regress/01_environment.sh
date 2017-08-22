@@ -6,7 +6,10 @@ cleanup() {
         cat $log1
     fi
     kill $SERVER1
-    rm -f $log1
+# Bit risky, but should be somewhat safe.
+# If someone knows a portable way and safe way, let me know.
+    pkill -f 'logtest \(master\)'
+    rm -f $log1 /tmp/logtest.log
 }
 
 trap cleanup EXIT
@@ -19,7 +22,8 @@ log1=`mktemp /tmp/server1.log.XXXXXX`
 rm -f /tmp/server1.sock
 
 PHP=${PHP:-`which php`}
-${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
+PRIVSEPD=${PRIVSEPD:=../privsepd.php}
+${PHP} ${PRIVSEPD} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
 
 # Make sure the daemon is up and running
@@ -39,10 +43,22 @@ kill $SERVER1
 rm -f /tmp/server1.sock
 touch /tmp/server1.sock
 
-${PHP} ${PRIVSEPD:=../privsepd.php} -dc ./server1.conf > $log1 2>&1 &
+${PHP} ${PRIVSEPD} -dc ./server1.conf > $log1 2>&1 &
 SERVER1=$!
 sleep 0.1
 
 [ ! -S /tmp/server1.sock ] && echo "Socket file not overwritten" >&2 && exit 1
+
+#Test if logs are written to specified file
+${PHP} ${PRIVSEPD} -c ./logtest.conf > $log1 2>&1
+sleep 0.1
+[ ! -f /tmp/logtest.log ] && echo "Logfile not created" >&2 && exit 1
+[ `ls -l /tmp/logtest.log | awk '{ print $3 }'` != "daemon" ] && echo "Logfile not owned by daemon" >&2 && exit 1
+[ `ls -l /tmp/logtest.log | awk '{ print $4 }'` != "daemon" ] && echo "Logfile not group owned by daemon" >&2 && exit 1
+[ `ls -l /tmp/logtest.log | awk '{ print $1 }'` != "-rwx------" ] && echo "Logfile permissions" >&2 && exit 1
+if ! grep -q Ready /tmp/logtest.log; then
+    echo "Logfile not filled" >&2
+    exit 1
+fi
 
 exit 0
