@@ -27,7 +27,7 @@ interface WhitelistInterface
     public function publicAttributes($class): array;
 
     /**
-     * @param string|Closure $function
+     * @param string|\Closure $function
      * @param array $arguments
      * @param string|object $class
      * @return array
