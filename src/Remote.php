@@ -162,7 +162,7 @@ abstract class Remote
 
         foreach ($array1 as $key => $value) {
             if (is_array($value) && is_array($array2[$key]) &&
-                !self::arraydiff($value, $array2[$key])
+                !self::arrayDiff($value, $array2[$key])
             ) {
                 return false;
             } elseif ($value !== $array2[$key]) {
